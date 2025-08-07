@@ -159,6 +159,94 @@ exports.login = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /magic-login
+ * Generate and send a magic login link to the user's email.
+ */
+exports.requestMagicLink = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      console.log(`Magic link requested for non-existent user: ${email}`);
+      return res.status(200).json({ message: 'If an account with that email exists, a magic link has been sent.' });
+    }
+
+    // Generate a secure, single-use token
+    const rawToken = generateToken(32);
+    const tokenHash = hashToken(rawToken);
+
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    user.magicLinkTokenHash = tokenHash;
+    user.magicLinkExpiresAt = expiresAt;
+    await user.save();
+
+    // Send the email
+    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/verify-magic-link?token=${rawToken}`;
+    const subject = 'Your Magic Login Link for NeonTek';
+    const text = `Hello ${user.name || ''},\n\nClick this link to log in to your NeonTek account:\n\n${magicLink}\n\nThis link will expire in 15 minutes.\n\nIf you did not request this, please ignore this email.`;
+    const html = `<p>Hello ${user.name || ''},</p><p>Click the link below to securely log in to your NeonTek account:</p><p><a href="${magicLink}">Log in to NeonTek</a></p><p>This link is valid for 15 minutes. If you did not request this, you can safely ignore this email.</p>`;
+
+    try {
+      await sendMail({ to: user.email, subject, text, html });
+    } catch (mailErr) {
+      console.error('Failed to send magic link email:', mailErr);
+    }
+    
+    res.status(200).json({ message: 'If an account with that email exists, a magic link has been sent.' });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /verify-magic-link
+ * Verify the token from the magic link and log the user in.
+ */
+exports.verifyMagicLink = async (req, res, next) => {
+  try {
+    const { token: rawToken } = req.query;
+    if (!rawToken) {
+      return res.status(400).send('Invalid or missing token.');
+    }
+
+    const tokenHash = hashToken(rawToken);
+
+    const user = await User.findOne({
+      magicLinkTokenHash: tokenHash,
+      magicLinkExpiresAt: { $gt: new Date() }, 
+    });
+
+    if (!user) {
+      return res.status(400).send('Login link is invalid or has expired. Please request a new one.');
+    }
+
+    // --- Login Success ---
+    user.magicLinkTokenHash = null;
+    user.magicLinkExpiresAt = null;
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const accessToken = signAccessToken(user);
+    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+
+    res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
+
+    const frontendRedirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/social-callback?accessToken=${accessToken}`;
+    res.redirect(frontendRedirectUrl);
+
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.refresh = async (req, res, next) => {
   try {
     const tokenValue = req.cookies[COOKIE_NAME];

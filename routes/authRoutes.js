@@ -30,6 +30,10 @@ router.get(
   socialAuthController.googleCallback
 );
 
+// Magic link
+router.post('/magic-login', authController.requestMagicLink);
+router.get('/verify-magic-link', authController.verifyMagicLink);
+
 // protected
 router.get('/me', authMiddleware, authController.me);
 

@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
   emailVerificationTokenHash: { type: String, default: null },
   emailVerificationExpiresAt: { type: Date, default: null },
 
+  // magic link
+  magicLinkTokenHash: { type: String, default: null },
+  magicLinkExpiresAt: { type: Date, default: null },
+
   // roles & auditing
   roles: { type: [String], default: ['user'] },
   lastLoginAt: { type: Date },

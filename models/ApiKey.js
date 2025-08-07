@@ -11,7 +11,7 @@ const apiKeySchema = new mongoose.Schema({
   
   scopes: { type: [String], default: ['read'] },
 
-  expiresAt: { type: Date, default: null }, // Optional expiry
+  expiresAt: { type: Date, default: null }, 
   lastUsedAt: { type: Date, default: null },
   
   revoked: { type: Boolean, default: false },

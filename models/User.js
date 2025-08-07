@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema({
   magicLinkTokenHash: { type: String, default: null },
   magicLinkExpiresAt: { type: Date, default: null },
 
+  // 2FA
+  twoFactorSecret: { type: String, default: null },
+  twoFactorEnabled: { type: Boolean, default: false },
+
   // roles & auditing
   roles: { type: [String], default: ['user'] },
   lastLoginAt: { type: Date },

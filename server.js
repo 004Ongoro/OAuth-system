@@ -4,11 +4,16 @@ const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 
 const passport = require('passport');
 
 const authRoutes = require('./routes/authRoutes');
 const apiKeyRoutes = require('./routes/apiKeyRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const twoFactorRoutes = require('./routes/twoFactorRoutes');
+const clientRoutes = require('./routes/clientRoutes');
+const oauthRoutes = require('./routes/oauthRoutes'); 
 
 const apiKeyAuth = require('./middleware/apiKeyAuth');
 
@@ -50,10 +55,14 @@ app.get('/test', (req, res) => {
   res.send('OK');
 });
 
-// Middlewares
+// Routes
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/keys', authLimiter, apiKeyRoutes);
+app.use('/api/admin', authLimiter, adminRoutes);
+app.use('/api/2fa', authLimiter, twoFactorRoutes); 
+app.use('/api/clients', authLimiter, clientRoutes);
+app.use('/oauth', oauthRoutes);
 
 app.get('/api/protected-data', apiKeyAuth, (req, res) => { 
   res.json({
@@ -62,6 +71,13 @@ app.get('/api/protected-data', apiKeyAuth, (req, res) => {
     auth: req.auth
   });
 });
+
+// View Engine Setup
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: true }));
 
 // error handler
 app.use((err, req, res, next) => {

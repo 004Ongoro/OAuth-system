@@ -9,7 +9,7 @@ module.exports = function (req, res, next) {
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = payload; // payload.sub contains userId
+    req.user = payload;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });

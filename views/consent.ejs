@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorize Application</title>
+     <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f4f4; }
+        .consent-container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        .client-name { font-weight: bold; }
+        .actions { margin-top: 1.5rem; }
+        button { padding: 0.75rem 1.5rem; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; margin: 0 0.5rem; }
+        .allow { background-color: #28a745; color: white; border-color: #28a745; }
+        .deny { background-color: #dc3545; color: white; border-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="consent-container">
+        <h1>Authorize Application</h1>
+        <p>
+            The application <strong class="client-name"><%= client.name %></strong> would like to access your profile information (name and email).
+        </p>
+        <form action="/oauth/consent" method="POST">
+             <input type="hidden" name="client_id" value="<%= client.clientId %>">
+            <input type="hidden" name="redirect_uri" value="<%= redirect_uri %>">
+            <input type="hidden" name="state" value="<%= state %>">
+            
+            <div class="actions">
+                <button type="submit" name="action" value="deny" class="deny">Deny</button>
+                <button type="submit" name="action" value="allow" class="allow">Allow</button>
+            </div> 
+        </form>
+    </div>
+</body>
+</html>

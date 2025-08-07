@@ -10,6 +10,7 @@ const socialAuthController = require('../controllers/socialAuthController');
 // public
 router.post('/signup', authController.signup);
 router.post('/login', authController.login);
+router.post('/login/verify-2fa', authController.verifyTwoFactor);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.get('/verify-email', authController.verifyEmail);

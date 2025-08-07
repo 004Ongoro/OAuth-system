@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const authAuditSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false },
-  action: { type: String, required: true }, // e.g. 'evoke_all', 'to
+  action: { type: String, required: true }, 
   ip: { type: String },
   userAgent: { type: String },
   meta: { type: Object, default: {} }, 

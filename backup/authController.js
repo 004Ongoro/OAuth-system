@@ -1,15 +1,15 @@
 const argon2 = require('argon2');
-const jwt = require('jsonwebtoken'); 
-const speakeasy = require('speakeasy');
+const { v4: uuidv4 } = require('uuid');
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
 const { generateRefreshTokenValue, generateToken, hashToken } = require('../utils/crypto');
 const { signAccessToken } = require('../utils/jwt');
 const AuthAudit = require('../models/AuthAudit');
-const { sendMail } = require('../utils/mailer');
+const {sendMail} = require('../utils/mailer')
 
 const REFRESH_EXPIRES_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRES_DAYS || '30', 10);
 const COOKIE_NAME = 'refreshToken';
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || undefined; 
 
 function cookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -18,123 +18,26 @@ function cookieOptions() {
     secure: isProd,
     sameSite: isProd ? 'none' : 'lax',
     domain: isProd ? process.env.COOKIE_DOMAIN : undefined,
-    path: '/',
+    path: '/', 
     maxAge: REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000,
   };
 }
 
+
 async function createRefreshTokenForUser(userId, ip) {
-  const tokenValue = generateRefreshTokenValue();
+  const tokenValue = generateRefreshTokenValue(); // raw token sent to client
   const tokenHash = hashToken(tokenValue);
   const expiresAt = new Date(Date.now() + REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+
   const refreshToken = await RefreshToken.create({
     user: userId,
     tokenHash,
     expiresAt,
     createdByIp: ip,
   });
+
   return { refreshToken, tokenValue };
 }
-
-exports.login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-
-    const ok = await argon2.verify(user.passwordHash, password);
-    if (!ok) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    if (user.twoFactorEnabled) {
-      const tempToken = jwt.sign(
-        { sub: user._id, type: '2fa' },
-        process.env.JWT_SECRET,
-        { expiresIn: '5m' } 
-      );
-      
-      return res.json({
-        message: 'Please provide your 2FA token.',
-        twoFactorRequired: true,
-        twoFactorToken: tempToken, 
-      });
-    }
-
-    user.lastLoginAt = new Date();
-    await user.save();
-
-    const accessToken = signAccessToken(user);
-    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
-
-    res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
-
-    res.json({
-      accessToken,
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        roles: user.roles,
-      },
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-
-exports.verifyTwoFactor = async (req, res, next) => {
-  try {
-    const { twoFactorToken, token } = req.body;
-    if (!twoFactorToken || !token) {
-        return res.status(400).json({ message: '2FA token and temporary token are required.' });
-    }
-
-    let payload;
-    try {
-        payload = jwt.verify(twoFactorToken, process.env.JWT_SECRET);
-        if (payload.type !== '2fa') throw new Error('Invalid token type');
-    } catch (err) {
-        return res.status(401).json({ message: 'Invalid or expired 2FA session token.' });
-    }
-    
-    const user = await User.findById(payload.sub);
-    const verified = speakeasy.totp.verify({
-        secret: user.twoFactorSecret,
-        encoding: 'base32',
-        token: token,
-    });
-
-    if (!verified) {
-        return res.status(401).json({ message: 'Invalid 2FA token.' });
-    }
-
-    user.lastLoginAt = new Date();
-    await user.save();
-
-    const accessToken = signAccessToken(user);
-    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
-
-    res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
-
-    res.json({
-        message: 'Login successful.',
-        accessToken,
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          roles: user.roles,
-        },
-      });
-
-  } catch (err) {
-    next(err);
-  }
-};
 
 exports.signup = async (req, res, next) => {
   try {
@@ -146,6 +49,7 @@ exports.signup = async (req, res, next) => {
 
     const passwordHash = await argon2.hash(password);
 
+    // create user, unverified
     const user = await User.create({
       email: email.toLowerCase(),
       passwordHash,
@@ -153,6 +57,7 @@ exports.signup = async (req, res, next) => {
       emailVerified: false
     });
 
+    // create verification token
     const rawToken = generateToken(32); // 64 hex chars
     const tokenHash = hashToken(rawToken);
     const expiresHours = parseInt(process.env.EMAIL_VERIFICATION_EXPIRES_HOURS || '24', 10);
@@ -162,26 +67,27 @@ exports.signup = async (req, res, next) => {
     user.emailVerificationExpiresAt = expiresAt;
     await user.save();
 
+    // send verification email (do not block signup if mail fails, but log)
     try {
       const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
       const verifyUrl = `${frontend.replace(/\/$/, '')}/verify-email?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
       const subject = 'Verify your NeonTek email';
       const text = `Hi ${user.name || user.email},
 
-        Thanks for creating an account at NeonTek. Please verify your email address by visiting the link below:
+Thanks for creating an account at NeonTek. Please verify your email address by visiting the link below:
 
-        ${verifyUrl}
+${verifyUrl}
 
-        This link will expire in ${expiresHours} hours.
+This link will expire in ${expiresHours} hours.
 
-        If you did not create an account, you can ignore this message.
+If you did not create an account, you can ignore this message.
 
-        — NeonTek`;
-              const html = `<p>Hi ${user.name || user.email},</p>
-        <p>Please verify your email address by clicking the link below:</p>
-        <p><a href="${verifyUrl}">Verify email address</a></p>
-        <p>This link expires in ${expiresHours} hours.</p>
-        <p>If you did not create an account, ignore this message.</p>`;
+— NeonTek`;
+      const html = `<p>Hi ${user.name || user.email},</p>
+<p>Please verify your email address by clicking the link below:</p>
+<p><a href="${verifyUrl}">Verify email address</a></p>
+<p>This link expires in ${expiresHours} hours.</p>
+<p>If you did not create an account, ignore this message.</p>`;
 
       const mailInfo = await sendMail({ to: user.email, subject, text, html });
       if (mailInfo && mailInfo.messageId) {
@@ -205,6 +111,48 @@ exports.signup = async (req, res, next) => {
         emailVerified: user.emailVerified
       },
       message: 'Account created. Please check your email to verify your address.'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+exports.login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ message: 'Email and password required' });
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+  //   if (!user.emailVerified) {
+  // return res.status(403).json({ message: 'Email not verified. Please check your email for verification link.' });
+  // }
+
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const ok = await argon2.verify(user.passwordHash, password);
+    if (!ok) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // record login time
+    user.lastLoginAt = new Date();
+    await user.save();
+
+    const accessToken = signAccessToken(user);
+    const { refreshToken, tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+
+    // set cookie
+    res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
+
+    res.json({
+      accessToken,
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        roles: user.roles,
+      }
     });
   } catch (err) {
     next(err);
@@ -632,3 +580,5 @@ exports.resendVerification = async (req, res, next) => {
     next(err);
   }
 };
+
+

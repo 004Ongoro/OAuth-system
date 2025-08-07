@@ -30,7 +30,6 @@ module.exports = async function (req, res, next) {
       return res.status(401).json({ message: 'User associated with this key no longer exists.' });
     }
     
-    // Attaching the user and the key's scopes to the request object
     req.user = { 
       sub: user._id.toString(),
       email: user.email,

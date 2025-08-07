@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const passport = require('passport');
 
-// routes and Config
+// Import route handlers
 const authRoutes = require('./routes/authRoutes');
 const apiKeyRoutes = require('./routes/apiKeyRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -27,9 +27,9 @@ connectDB();
 
 // --- CORE MIDDLEWARE
 app.use(helmet());
-app.use(express.json());
+app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
+app.use(cookieParser()); 
 
 // CORS Configuration
 app.use(
@@ -67,7 +67,8 @@ const authLimiter = rateLimit({
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-// --- ROUTES ---
+
+// --- ROUTES 
 app.get('/', (req, res) => res.json({ message: 'NeonTek Accounts API - running' }));
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/keys', authLimiter, apiKeyRoutes);

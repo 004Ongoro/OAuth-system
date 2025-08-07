@@ -3,15 +3,14 @@ const router = express.Router();
 
 const oauthController = require('../controllers/oauthController');
 
-// Entry point
+// Entry point for the OAuth flow
 router.get('/authorize', oauthController.authorize);
 
-// Login routes
+// Routes for the login page
 router.get('/login', oauthController.getLoginPage);
 router.post('/login', oauthController.handleLogin);
 
-// Consent routes
-router.get('/consent', oauthController.getConsentPage); 
+// Route to handle the user's consent decision
 router.post('/consent', oauthController.handleConsent);
 
 module.exports = router;

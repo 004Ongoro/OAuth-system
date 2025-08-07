@@ -1,17 +1,20 @@
+// models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-  passwordHash: { type: String, required: true },
+  passwordHash: { type: String, required: false },
+
+  googleId: { type: String, unique: true, sparse: true, default: null },
 
   // name fields
-  name: { type: String, default: '' },         // full display name
-  givenName: { type: String, default: '' },    // first name
-  familyName: { type: String, default: '' },   // last name
+  name: { type: String, default: '' },
+  givenName: { type: String, default: '' },
+  familyName: { type: String, default: '' },
 
   // profile
-  profilePicture: { type: String, default: null }, // URL
-  phoneNumber: { type: String, default: null },   // unverified by default
+  profilePicture: { type: String, default: null },
+  phoneNumber: { type: String, default: null },
   phoneVerified: { type: Boolean, default: false },
 
   // personal
@@ -19,7 +22,7 @@ const userSchema = new mongoose.Schema({
   birthday: { type: Date, default: null },
 
   // locale / preferences
-  language: { type: String, default: 'en' }, 
+  language: { type: String, default: 'en' },
   country: { type: String, default: '' },
   timezone: { type: String, default: '' },
 

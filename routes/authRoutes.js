@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const passport = require('passport');
 const authController = require('../controllers/authController');
 const authMiddleware = require('../middleware/authMiddleware');
 const sessionController = require('../controllers/sessionController');
 const profileController = require('../controllers/profileController');
+const socialAuthController = require('../controllers/socialAuthController');
 
 // public
 router.post('/signup', authController.signup);
@@ -13,6 +15,20 @@ router.post('/logout', authController.logout);
 router.get('/verify-email', authController.verifyEmail);
 router.post('/verify-email', authController.verifyEmail); 
 router.post('/resend-verification', authController.resendVerification);
+
+// -- Social Auth Routes --
+// 1. Route to start the Google authentication flow
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+
+// 2. Google callback route - Google redirects here after user grants permission
+router.get(
+  '/google/callback',
+  passport.authenticate('google', {
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=google-auth-failed`,
+    session: false,
+  }),
+  socialAuthController.googleCallback
+);
 
 // protected
 router.get('/me', authMiddleware, authController.me);

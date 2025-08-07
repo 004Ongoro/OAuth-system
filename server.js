@@ -4,8 +4,11 @@ const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const passport = require('passport');
 const authRoutes = require('./routes/authRoutes');
 const connectDB = require('./config/db');
+
+require('./config/passport');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,9 +21,8 @@ connectDB();
 app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
+app.use(passport.initialize()); 
 
-// CORS - allow credentials for cookie usage across subdomains during integration.
-// In production, set origin to your apps domain(s), not "*".
 app.use(
   cors({
     origin: true,
@@ -28,7 +30,6 @@ app.use(
   })
 );
 
-// Basic rate limiter for public auth endpoints
 const authLimiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
   max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),

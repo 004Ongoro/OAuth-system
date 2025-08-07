@@ -1,23 +1,20 @@
 require('dotenv').config();
 const express = require('express');
-const session = require('express-session'); 
+const session = require('express-session');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-
 const passport = require('passport');
 
+// routes and Config
 const authRoutes = require('./routes/authRoutes');
 const apiKeyRoutes = require('./routes/apiKeyRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const twoFactorRoutes = require('./routes/twoFactorRoutes');
 const clientRoutes = require('./routes/clientRoutes');
-const oauthRoutes = require('./routes/oauthRoutes'); 
-
-const apiKeyAuth = require('./middleware/apiKeyAuth');
-
+const oauthRoutes = require('./routes/oauthRoutes');
 const connectDB = require('./config/db');
 require('./config/passport');
 
@@ -25,15 +22,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// connect DB
+// Connect to Database
 connectDB();
 
-// Middlewares
+// --- CORE MIDDLEWARE
 app.use(helmet());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(passport.initialize()); 
 
+// CORS Configuration
 app.use(
   cors({
     origin: 'http://localhost:5000',
@@ -41,64 +39,50 @@ app.use(
   })
 );
 
+// Session Configuration
+app.use(
+  session({
+    secret: process.env.JWT_SECRET,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      httpOnly: true,
+      secure: NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 1000,
+    },
+  })
+);
 
-app.use(session({
-  secret: process.env.JWT_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 1000
-  }
-}));
+// Passport Initialization
+app.use(passport.initialize());
 
+// Rate Limiter
 const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
+  windowMs: 900000,
+  max: 100,
 });
 
-app.get('/', (req, res) => {
-  res.json({ message: 'NeonTek Accounts API - running' });
-});
-
-app.get('/test', (req, res) => {
-  res.send('OK');
-});
-
-// Routes
-
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/keys', authLimiter, apiKeyRoutes);
-app.use('/api/admin', authLimiter, adminRoutes);
-app.use('/api/2fa', authLimiter, twoFactorRoutes); 
-app.use('/api/clients', authLimiter, clientRoutes);
-app.use('/oauth', oauthRoutes);
-
-app.get('/api/protected-data', apiKeyAuth, (req, res) => { 
-  res.json({
-    message: "Success! You have accessed protected data with an API Key.",
-    user: req.user,
-    auth: req.auth
-  });
-});
-
-// View Engine Setup
+// --- VIEW ENGINE SETUP ---
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.urlencoded({ extended: true }));
+// --- ROUTES ---
+app.get('/', (req, res) => res.json({ message: 'NeonTek Accounts API - running' }));
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/keys', authLimiter, apiKeyRoutes);
+app.use('/api/admin', authLimiter, adminRoutes);
+app.use('/api/2fa', authLimiter, twoFactorRoutes);
+app.use('/api/clients', authLimiter, clientRoutes);
+app.use('/oauth', oauthRoutes);
 
-// error handler
+// Error Handler
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(err.status || 500).json({ message: err.message || 'Server error' });
 });
 
+// Start Server
 app.listen(PORT, () =>
   console.log(`Server listening on port ${PORT} in ${NODE_ENV} mode`)
 );

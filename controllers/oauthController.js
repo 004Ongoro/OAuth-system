@@ -1,10 +1,9 @@
-// controllers/oauthController.js (NEW AND IMPROVED)
-
 const Client = require('../models/Client');
 const User = require('../models/User');
 const AuthorizationCode = require('../models/AuthorizationCode');
 const argon2 = require('argon2');
 const crypto = require('crypto');
+const signAccessToken = require('../utils/jwt')
 
 exports.authorize = async (req, res, next) => {
     const { response_type, client_id, redirect_uri, state } = req.query;
@@ -104,4 +103,48 @@ exports.handleConsent = async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+};
+
+exports.handleTokenRequest = async (req, res, next) => {
+  try {
+    const { grant_type, code, redirect_uri, client_id, client_secret } = req.body;
+
+    if (grant_type !== 'authorization_code') {
+      return res.status(400).json({ error: 'unsupported_grant_type' });
+    }
+
+    const client = await Client.findOne({ clientId: client_id });
+    if (!client) {
+      return res.status(401).json({ error: 'invalid_client' });
+    }
+
+    const secretIsValid = await argon2.verify(client.clientSecretHash, client_secret);
+    if (!secretIsValid) {
+      return res.status(401).json({ error: 'invalid_client' });
+    }
+
+    const authCode = await AuthorizationCode.findOne({
+      code: code,
+      client: client._id,
+      redirectUri: redirect_uri,
+      expiresAt: { $gt: new Date() }
+    }).populate('user');
+
+    if (!authCode) {
+      return res.status(400).json({ error: 'invalid_grant' });
+    }
+
+    const accessToken = signAccessToken(authCode.user);
+    
+    await AuthorizationCode.deleteOne({ _id: authCode._id });
+
+    res.json({
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: 15 * 60, // 15 minutes
+    });
+
+  } catch (err) {
+    next(err);
+  }
 };

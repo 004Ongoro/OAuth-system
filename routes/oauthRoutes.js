@@ -12,5 +12,6 @@ router.post('/login', oauthController.handleLogin);
 
 // Route to handle the user's consent decision
 router.post('/consent', oauthController.handleConsent);
+router.post('/token', oauthController.handleTokenRequest);
 
 module.exports = router;

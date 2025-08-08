@@ -105,6 +105,54 @@ exports.handleConsent = async (req, res, next) => {
     }
 };
 
+// exports.handleTokenRequest = async (req, res, next) => {
+//   try {
+//     const { grant_type, code, redirect_uri, client_id, client_secret } = req.body;
+
+//     if (grant_type !== 'authorization_code') {
+//       return res.status(400).json({ error: 'unsupported_grant_type' });
+//     }
+
+//     const client = await Client.findOne({ clientId: client_id });
+//     if (!client) {
+//       return res.status(401).json({ error: 'invalid_client' });
+//     }
+
+//     const secretIsValid = await argon2.verify(client.clientSecretHash, client_secret);
+//     if (!secretIsValid) {
+//       return res.status(401).json({ error: 'invalid_client' });
+//     }
+
+//     const authCode = await AuthorizationCode.findOne({
+//       code: code,
+//       client: client._id,
+//       redirectUri: redirect_uri,
+//       expiresAt: { $gt: new Date() }
+//     }).populate('user');
+
+//     if (!authCode) {
+//       return res.status(400).json({ error: 'invalid_grant' });
+//     }
+
+//     const accessToken = signAccessToken(authCode.user);
+    
+//     await AuthorizationCode.deleteOne({ _id: authCode._id });
+
+//     res.json({
+//       access_token: accessToken,
+//       token_type: 'Bearer',
+//       expires_in: 15 * 60, // 15 minutes
+//     });
+
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+/**
+ * POST /oauth/token
+ * The secure, server-to-server endpoint for exchanging an authorization code for an access token.
+ */
 exports.handleTokenRequest = async (req, res, next) => {
   try {
     const { grant_type, code, redirect_uri, client_id, client_secret } = req.body;
@@ -112,12 +160,14 @@ exports.handleTokenRequest = async (req, res, next) => {
     if (grant_type !== 'authorization_code') {
       return res.status(400).json({ error: 'unsupported_grant_type' });
     }
+    if (!code || !redirect_uri || !client_id || !client_secret) {
+        return res.status(400).json({ error: 'invalid_request' });
+    }
 
     const client = await Client.findOne({ clientId: client_id });
     if (!client) {
       return res.status(401).json({ error: 'invalid_client' });
     }
-
     const secretIsValid = await argon2.verify(client.clientSecretHash, client_secret);
     if (!secretIsValid) {
       return res.status(401).json({ error: 'invalid_client' });
@@ -131,7 +181,7 @@ exports.handleTokenRequest = async (req, res, next) => {
     }).populate('user');
 
     if (!authCode) {
-      return res.status(400).json({ error: 'invalid_grant' });
+      return res.status(400).json({ error: 'invalid_grant', error_description: 'Authorization code is invalid, expired, or has already been used.' });
     }
 
     const accessToken = signAccessToken(authCode.user);
@@ -141,7 +191,7 @@ exports.handleTokenRequest = async (req, res, next) => {
     res.json({
       access_token: accessToken,
       token_type: 'Bearer',
-      expires_in: 15 * 60, // 15 minutes
+      expires_in: 15 * 60, // 900 seconds
     });
 
   } catch (err) {

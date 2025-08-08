@@ -240,7 +240,8 @@ exports.requestMagicLink = async (req, res, next) => {
     await user.save();
 
     // Send the email
-    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/api/auth/verify-magic-link?token=${rawToken}`;
+    const backendUrl = `http://localhost:${process.env.PORT || 5000}`;
+    const magicLink = `${backendUrl}/api/auth/verify-magic-link?token=${rawToken}`;
     const subject = 'Your Magic Login Link for NeonTek';
     const text = `Hello ${user.name || ''},\n\nClick this link to log in to your NeonTek account:\n\n${magicLink}\n\nThis link will expire in 15 minutes.\n\nIf you did not request this, please ignore this email.`;
     const html = `<p>Hello ${user.name || ''},</p><p>Click the link below to securely log in to your NeonTek account:</p><p><a href="${magicLink}">Log in to NeonTek</a></p><p>This link is valid for 15 minutes. If you did not request this, you can safely ignore this email.</p>`;
@@ -291,7 +292,7 @@ exports.verifyMagicLink = async (req, res, next) => {
 
     res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
 
-    const frontendRedirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/social-callback?accessToken=${accessToken}`;
+    const frontendRedirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?accessToken=${accessToken}`;
     res.redirect(frontendRedirectUrl);
 
   } catch (err) {

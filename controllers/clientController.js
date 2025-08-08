@@ -37,3 +37,17 @@ exports.registerClient = async (req, res, next) => {
     next(err);
   }
 };
+
+/**
+ * GET /api/clients
+ * Lists all client applications registered by the authenticated user.
+ */
+exports.listClients = async (req, res, next) => {
+  try {
+    const ownerId = req.user.sub;
+    const clients = await Client.find({ owner: ownerId }).select('-clientSecretHash').lean();
+    res.json({ clients });
+  } catch (err) {
+    next(err);
+  }
+};

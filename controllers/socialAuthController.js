@@ -48,8 +48,7 @@ exports.googleCallback = async (req, res, next) => {
     await user.save();
     
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/social-callback?accessToken=${accessToken}`);
-
+    res.redirect(`${frontendUrl}/auth/callback?accessToken=${accessToken}`);
   } catch (err) {
     next(err);
   }

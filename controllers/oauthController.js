@@ -3,7 +3,7 @@ const User = require('../models/User');
 const AuthorizationCode = require('../models/AuthorizationCode');
 const argon2 = require('argon2');
 const crypto = require('crypto');
-const signAccessToken = require('../utils/jwt')
+const { signAccessToken } = require('../utils/jwt');
 
 exports.authorize = async (req, res, next) => {
     const { response_type, client_id, redirect_uri, state } = req.query;
@@ -11,27 +11,32 @@ exports.authorize = async (req, res, next) => {
     if (response_type !== 'code') return res.status(400).render('error', { message: 'Unsupported response_type' });
     if (!client_id || !redirect_uri) return res.status(400).render('error', { message: 'Missing required parameters' });
 
-    const client = await Client.findOne({ clientId: client_id });
-    if (!client) return res.status(400).render('error', { message: 'Invalid client_id' });
-    if (!client.redirectUris.includes(redirect_uri)) return res.status(400).render('error', { message: 'Invalid redirect_uri' });
+    try {
+        const client = await Client.findOne({ clientId: client_id });
+        if (!client) return res.status(400).render('error', { message: 'Invalid client_id' });
+        if (!client.redirectUris.includes(redirect_uri)) return res.status(400).render('error', { message: 'Invalid redirect_uri' });
 
-    req.session.oauth = {
-        client_id,
-        redirect_uri,
-        state,
-        // scope 
-    };
+        req.session.oauth = { client_id, redirect_uri, state };
 
-    if (req.session.userId) {
-        const user = await User.findById(req.session.userId);
-        return res.render('consent', { client, user });
+        req.session.save(async () => {
+            if (req.session.userId) {
+                const user = await User.findById(req.session.userId);
+                return res.render('consent', { client, user });
+            }
+            res.render('login', { client, error: null });
+        });
+    } catch (err) {
+        next(err);
     }
-
-    res.render('login', { error: null });
 };
 
-exports.getLoginPage = (req, res) => {
-    res.render('login', { error: req.query.error || null });
+exports.getLoginPage = async (req, res) => {
+    try {
+        const client = await Client.findOne({ clientId: req.query.client_id });
+        res.render('login', { client, error: req.query.error || null });
+    } catch (err) {
+        res.status(500).render('error', { message: 'Server error' });
+    }
 };
 
 exports.handleLogin = async (req, res, next) => {
@@ -74,15 +79,18 @@ exports.handleConsent = async (req, res, next) => {
         }
         
         const client = await Client.findOne({ clientId: oauth.client_id });
+        if (!client) {
+             return res.status(400).render('error', { message: 'Invalid Client.' });
+        }
+        
         const redirectUrl = new URL(oauth.redirect_uri);
         if (oauth.state) redirectUrl.searchParams.set('state', oauth.state);
 
-        // Clear the oauth transaction from the session
         req.session.oauth = null;
 
         if (action === 'deny') {
             redirectUrl.searchParams.set('error', 'access_denied');
-            return res.redirect(redirectUrl.toString());
+            return req.session.save(() => res.render('redirect', { redirectUrl: redirectUrl.toString() }));
         }
 
         if (action === 'allow') {
@@ -92,11 +100,11 @@ exports.handleConsent = async (req, res, next) => {
                 user: userId,
                 client: client._id,
                 redirectUri: oauth.redirect_uri,
-                expiresAt: new Date(Date.now() + 10 * 60 * 1000), 
+                expiresAt: new Date(Date.now() + 10 * 60 * 1000),
             });
 
             redirectUrl.searchParams.set('code', codeValue);
-            return res.redirect(redirectUrl.toString());
+            return req.session.save(() => res.render('redirect', { redirectUrl: redirectUrl.toString() }));
         }
 
         return res.status(400).render('error', { message: 'Invalid action.' });

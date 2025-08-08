@@ -31,6 +31,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser()); 
 
+// --- VIEW ENGINE & STATIC FILES
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'ejs');
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: true }));
+
 // CORS Configuration
 app.use(
   cors({
@@ -62,10 +68,6 @@ const authLimiter = rateLimit({
   windowMs: 900000,
   max: 100,
 });
-
-// --- VIEW ENGINE SETUP ---
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'ejs');
 
 
 // --- ROUTES 

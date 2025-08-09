@@ -17,7 +17,7 @@ function cookieOptions() {
   };
 }
 
-async function createRefreshTokenForUser(userId, ip) {
+async function createRefreshTokenForUser(userId, req) {
   const tokenValue = generateRefreshTokenValue();
   const tokenHash = hashToken(tokenValue);
   const expiresAt = new Date(Date.now() + REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
@@ -26,7 +26,8 @@ async function createRefreshTokenForUser(userId, ip) {
     user: userId,
     tokenHash,
     expiresAt,
-    createdByIp: ip,
+    createdByIp: req.ip,
+    userAgent: req.get('User-Agent') || '',
   });
 
   return { refreshToken, tokenValue };
@@ -38,7 +39,7 @@ exports.googleCallback = async (req, res, next) => {
     const user = req.user;
 
     const accessToken = signAccessToken(user);
-    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+    const { tokenValue } = await createRefreshTokenForUser(user._id, req);
 
     // Set the refresh token as a cookie
     res.cookie(COOKIE_NAME, tokenValue, cookieOptions());

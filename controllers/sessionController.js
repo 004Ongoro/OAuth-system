@@ -13,7 +13,7 @@ exports.getSessions = async (req, res, next) => {
     if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
     const sessions = await RefreshToken.find({ user: userId })
-      .select('_id createdAt expiresAt createdByIp revoked revokedAt replacedByTokenId')
+      .select('_id createdAt expiresAt userAgent createdByIp revoked revokedAt replacedByTokenId')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -25,7 +25,9 @@ exports.getSessions = async (req, res, next) => {
       createdByIp: s.createdByIp,
       revoked: !!s.revoked,
       revokedAt: s.revokedAt || null,
-      replacedByTokenId: s.replacedByTokenId || null
+      replacedByTokenId: s.replacedByTokenId || null,
+      userAgent: s.userAgent,
+      isCurrent: s.tokenHash === currentTokenHash,
     }));
 
     res.json({ sessions: mapped });

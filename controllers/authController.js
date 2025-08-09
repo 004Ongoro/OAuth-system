@@ -23,7 +23,7 @@ function cookieOptions() {
   };
 }
 
-async function createRefreshTokenForUser(userId, ip) {
+async function createRefreshTokenForUser(userId, req) {
   const tokenValue = generateRefreshTokenValue();
   const tokenHash = hashToken(tokenValue);
   const expiresAt = new Date(Date.now() + REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
@@ -31,7 +31,8 @@ async function createRefreshTokenForUser(userId, ip) {
     user: userId,
     tokenHash,
     expiresAt,
-    createdByIp: ip,
+    createdByIp: req.ip,
+    userAgent: req.get('User-Agent') || '',
   });
   return { refreshToken, tokenValue };
 }
@@ -67,7 +68,7 @@ exports.login = async (req, res, next) => {
     await user.save();
 
     const accessToken = signAccessToken(user);
-    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+    const { tokenValue } = await createRefreshTokenForUser(user._id, req);
 
     res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
 
@@ -116,7 +117,7 @@ exports.verifyTwoFactor = async (req, res, next) => {
     await user.save();
 
     const accessToken = signAccessToken(user);
-    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+    const { tokenValue } = await createRefreshTokenForUser(user._id, req);
 
     res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
 
@@ -192,7 +193,7 @@ exports.signup = async (req, res, next) => {
     }
 
     const accessToken = signAccessToken(user);
-    const { refreshToken, tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+    const { refreshToken, tokenValue } = await createRefreshTokenForUser(user._id, req);
     res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
 
     res.status(201).json({
@@ -288,7 +289,7 @@ exports.verifyMagicLink = async (req, res, next) => {
     await user.save();
 
     const accessToken = signAccessToken(user);
-    const { tokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+    const { tokenValue } = await createRefreshTokenForUser(user._id, req);
 
     res.cookie(COOKIE_NAME, tokenValue, cookieOptions());
 
@@ -328,7 +329,7 @@ exports.refresh = async (req, res, next) => {
     existing.revokedByIp = req.ip;
 
     // Create new refresh token
-    const { refreshToken: newRefreshDoc, tokenValue: newTokenValue } = await createRefreshTokenForUser(user._id, req.ip);
+    const { refreshToken: newRefreshDoc, tokenValue: newTokenValue } = await createRefreshTokenForUser(user._id, req);
 
     // link replacement
     existing.replacedByTokenId = newRefreshDoc._id;
@@ -396,6 +397,25 @@ exports.me = async (req, res, next) => {
       emailVerified: user.emailVerified,
       lastLoginAt: user.lastLoginAt
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * GET /api/auth/activity
+ * Retrieves recent security-related activity for the authenticated user.
+ */
+exports.getActivity = async (req, res, next) => {
+  try {
+    const userId = req.user.sub;
+
+    const activity = await AuthAudit.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    res.json({ activity });
   } catch (err) {
     next(err);
   }

@@ -45,5 +45,6 @@ router.post('/change-password', authMiddleware, authController.changePassword);
 // router.post('/update-profile', authMiddleware, authController.updateProfile);
 router.get('/profile', authMiddleware, profileController.getProfile);
 router.put('/profile', authMiddleware, profileController.updateProfile);
+router.get('/activity', authMiddleware, authController.getActivity); 
 
 module.exports = router;
